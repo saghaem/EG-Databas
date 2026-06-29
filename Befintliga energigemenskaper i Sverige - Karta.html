@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Energigemenskaper i Sverige — interaktiv karta</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.css" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg: #F5F2EA;
+    --panel: #FBFAF6;
+    --ink: #16241F;
+    --ink-soft: #4B5A53;
+    --line: #E2DDCE;
+    --line-soft: #ECE7DA;
+    --forest: #1F6F54;
+    --forest-soft: #DCEBE3;
+    --blue: #3A5A99;
+    --blue-soft: #DEE6F2;
+    --amber: #A8772E;
+    --amber-soft: #F0E3CC;
+    --grey: #7C8581;
+    --grey-soft: #E6E6E2;
+    --sun: #E0A23B;
+    --radius: 14px;
+    --shadow: 0 6px 24px rgba(22,36,31,0.10);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    font-family:'IBM Plex Sans', sans-serif;
+    background:var(--bg);
+    color:var(--ink);
+    overflow:hidden;
+  }
+  .app{
+    display:flex;
+    height:100vh;
+    width:100vw;
+  }
+
+  /* ---------- Sidebar ---------- */
+  .sidebar{
+    width:400px;
+    min-width:400px;
+    height:100%;
+    background:var(--panel);
+    border-right:1px solid var(--line);
+    display:flex;
+    flex-direction:column;
+    z-index:10;
+  }
+  .sidebar-header{
+    padding:22px 22px 16px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .eyebrow{
+    font-size:11px;
+    letter-spacing:0.14em;
+    text-transform:uppercase;
+    color:var(--forest);
+    font-weight:600;
+    margin:0 0 6px;
+  }
+  h1{
+    font-family:'Fraunces', serif;
+    font-optical-sizing:auto;
+    font-weight:600;
+    font-size:25px;
+    line-height:1.15;
+    margin:0 0 6px;
+    color:var(--ink);
+  }
+  .subtitle{
+    font-size:13px;
+    color:var(--ink-soft);
+    line-height:1.5;
+    margin:0;
+  }
+
+  /* stats */
+  .stats{
+    display:grid;
+    grid-template-columns:1fr 1fr 1fr;
+    gap:8px;
+    padding:16px 22px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .stat{
+    background:var(--bg);
+    border:1px solid var(--line-soft);
+    border-radius:10px;
+    padding:9px 10px;
+    text-align:left;
+  }
+  .stat .num{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:20px;
+    color:var(--forest);
+    display:block;
+    line-height:1.1;
+  }
+  .stat .lbl{
+    font-size:10.5px;
+    color:var(--ink-soft);
+    line-height:1.3;
+    display:block;
+    margin-top:2px;
+  }
+
+  /* search */
+  .search-wrap{
+    padding:14px 22px 10px;
+  }
+  .search-box{
+    position:relative;
+  }
+  .search-box input{
+    width:100%;
+    padding:10px 14px 10px 36px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    font-family:'IBM Plex Sans', sans-serif;
+    font-size:13.5px;
+    background:#fff;
+    color:var(--ink);
+    outline:none;
+    transition:border-color .15s ease;
+  }
+  .search-box input:focus{
+    border-color:var(--forest);
+  }
+  .search-box svg{
+    position:absolute;
+    left:11px;
+    top:50%;
+    transform:translateY(-50%);
+    width:15px;
+    height:15px;
+    stroke:var(--ink-soft);
+  }
+  .clear-btn{
+    position:absolute;
+    right:8px;
+    top:50%;
+    transform:translateY(-50%);
+    background:none;
+    border:none;
+    color:var(--ink-soft);
+    font-size:12px;
+    cursor:pointer;
+    display:none;
+    padding:4px;
+  }
+
+  /* filters */
+  .filters{
+    padding:6px 22px 14px;
+    border-bottom:1px solid var(--line-soft);
+  }
+  .filter-group{
+    margin-bottom:10px;
+  }
+  .filter-group:last-child{margin-bottom:0;}
+  .filter-title{
+    font-size:10.5px;
+    letter-spacing:0.08em;
+    text-transform:uppercase;
+    color:var(--ink-soft);
+    font-weight:600;
+    margin:0 0 7px;
+  }
+  .chip-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .chip{
+    border:1px solid var(--line);
+    background:#fff;
+    border-radius:999px;
+    padding:5px 11px;
+    font-size:12px;
+    font-weight:500;
+    color:var(--ink-soft);
+    cursor:pointer;
+    display:flex;
+    align-items:center;
+    gap:6px;
+    transition:all .12s ease;
+    user-select:none;
+  }
+  .chip:hover{border-color:var(--ink-soft);}
+  .chip .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:currentColor;
+    flex-shrink:0;
+  }
+  .chip.active{
+    background:var(--ink);
+    color:#fff;
+    border-color:var(--ink);
+  }
+  .chip.active.st-Aktiv{background:var(--forest);border-color:var(--forest);}
+  .chip.active.st-Pilot{background:var(--blue);border-color:var(--blue);}
+  .chip.active.st-Planering{background:var(--amber);border-color:var(--amber);}
+  .chip.active.st-Vilande{background:var(--grey);border-color:var(--grey);}
+
+  .reset-link{
+    background:none;border:none;
+    font-size:11.5px;
+    color:var(--forest);
+    text-decoration:underline;
+    cursor:pointer;
+    padding:0;
+    margin-top:8px;
+  }
+
+  /* list */
+  .list-header{
+    padding:12px 22px 8px;
+    font-size:12px;
+    color:var(--ink-soft);
+    display:flex;
+    justify-content:space-between;
+  }
+  #count-label b{color:var(--ink);}
+  .list{
+    flex:1;
+    overflow-y:auto;
+    padding:0 14px 18px;
+  }
+  .card{
+    background:#fff;
+    border:1px solid var(--line-soft);
+    border-radius:12px;
+    padding:12px 13px;
+    margin:0 8px 9px;
+    cursor:pointer;
+    transition:border-color .12s ease, box-shadow .12s ease, transform .08s ease;
+  }
+  .card:hover{
+    border-color:var(--line);
+    box-shadow:var(--shadow);
+  }
+  .card.selected{
+    border-color:var(--forest);
+    box-shadow:0 0 0 2px var(--forest-soft);
+  }
+  .card-top{
+    display:flex;
+    align-items:flex-start;
+    gap:8px;
+    margin-bottom:4px;
+  }
+  .status-dot{
+    width:9px;height:9px;border-radius:50%;
+    margin-top:4px;
+    flex-shrink:0;
+  }
+  .card-name{
+    font-weight:600;
+    font-size:14px;
+    line-height:1.3;
+    color:var(--ink);
+  }
+  .card-place{
+    font-size:12px;
+    color:var(--ink-soft);
+    margin:0 0 6px 17px;
+  }
+  .badge-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:5px;
+    margin-left:17px;
+  }
+  .badge{
+    font-size:10.5px;
+    padding:2px 7px;
+    border-radius:999px;
+    font-weight:500;
+    white-space:nowrap;
+  }
+  .badge.status{color:#fff;}
+  .badge.status.st-Aktiv{background:var(--forest);}
+  .badge.status.st-Pilot{background:var(--blue);}
+  .badge.status.st-Planering{background:var(--amber);}
+  .badge.status.st-Vilande{background:var(--grey);}
+  .badge.muted{
+    background:var(--bg);
+    color:var(--ink-soft);
+    border:1px solid var(--line-soft);
+  }
+  .badge.coop{
+    background:var(--sun);
+    color:#fff;
+  }
+  .empty-state{
+    text-align:center;
+    color:var(--ink-soft);
+    font-size:13px;
+    padding:50px 24px;
+    line-height:1.6;
+  }
+
+  .sidebar-footer{
+    padding:11px 22px;
+    border-top:1px solid var(--line-soft);
+    font-size:10.5px;
+    color:var(--ink-soft);
+    line-height:1.5;
+    background:var(--panel);
+  }
+
+  /* ---------- Map ---------- */
+  .map-area{
+    flex:1;
+    position:relative;
+    height:100%;
+  }
+  #map{
+    width:100%;
+    height:100%;
+    background:#EAE7DC;
+  }
+  .leaflet-popup-content-wrapper{
+    border-radius:14px;
+    box-shadow:0 10px 34px rgba(22,36,31,0.22);
+  }
+  .leaflet-popup-content{
+    margin:0;
+    width:300px !important;
+  }
+  .popup-inner{
+    padding:15px 16px 14px;
+    font-family:'IBM Plex Sans', sans-serif;
+  }
+  .popup-status{
+    display:inline-block;
+    font-size:10.5px;
+    font-weight:600;
+    color:#fff;
+    padding:3px 9px;
+    border-radius:999px;
+    margin-bottom:8px;
+  }
+  .popup-name{
+    font-family:'Fraunces', serif;
+    font-weight:600;
+    font-size:17px;
+    margin:0 0 2px;
+    color:var(--ink);
+    line-height:1.25;
+  }
+  .popup-place{
+    font-size:12.5px;
+    color:var(--ink-soft);
+    margin:0 0 10px;
+  }
+  .popup-row{
+    display:flex;
+    gap:6px;
+    font-size:12px;
+    margin-bottom:5px;
+    line-height:1.45;
+  }
+  .popup-row .k{
+    color:var(--ink-soft);
+    min-width:88px;
+    flex-shrink:0;
+  }
+  .popup-row .v{color:var(--ink);}
+  .popup-desc{
+    font-size:12.5px;
+    line-height:1.55;
+    color:var(--ink);
+    margin:10px 0 10px;
+    max-height:140px;
+    overflow-y:auto;
+    padding-right:4px;
+    border-top:1px solid var(--line-soft);
+    padding-top:9px;
+  }
+  .popup-links{
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .popup-links a{
+    font-size:11.5px;
+    font-weight:600;
+    color:var(--forest);
+    background:var(--forest-soft);
+    padding:5px 10px;
+    border-radius:8px;
+    text-decoration:none;
+  }
+  .popup-links a:hover{text-decoration:underline;}
+
+  /* legend */
+  .legend{
+    position:absolute;
+    bottom:18px;
+    right:18px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:12px;
+    padding:11px 14px;
+    box-shadow:var(--shadow);
+    font-size:11.5px;
+    z-index:5;
+    line-height:1.4;
+  }
+  .legend-title{
+    font-weight:600;
+    margin-bottom:6px;
+    color:var(--ink-soft);
+    font-size:10.5px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+  }
+  .legend-row{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin-bottom:4px;
+  }
+  .legend-row:last-child{margin-bottom:0;}
+  .legend-dot{
+    width:10px;height:10px;border-radius:50%;
+    flex-shrink:0;
+  }
+
+  /* mobile toggle */
+  .mobile-toggle{
+    display:none;
+  }
+
+  /* custom markers */
+  .eg-marker{
+    border-radius:50%;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border:2px solid #fff;
+    box-shadow:0 2px 6px rgba(0,0,0,0.3);
+  }
+  .eg-marker.pulse::before{
+    content:'';
+    position:absolute;
+    top:-6px;left:-6px;right:-6px;bottom:-6px;
+    border-radius:50%;
+    background:inherit;
+    opacity:0.45;
+    animation:pulse 2.2s ease-out infinite;
+  }
+  @keyframes pulse{
+    0%{transform:scale(0.6);opacity:0.55;}
+    70%{transform:scale(1.9);opacity:0;}
+    100%{transform:scale(1.9);opacity:0;}
+  }
+
+  /* scrollbars */
+  .list::-webkit-scrollbar, .popup-desc::-webkit-scrollbar{width:6px;}
+  .list::-webkit-scrollbar-thumb, .popup-desc::-webkit-scrollbar-thumb{
+    background:var(--line);border-radius:3px;
+  }
+
+  @media (max-width: 860px){
+    .app{flex-direction:column;}
+    .sidebar{
+      width:100%;
+      min-width:0;
+      height:auto;
+      max-height:52vh;
+      border-right:none;
+      border-bottom:1px solid var(--line);
+      order:2;
+    }
+    .map-area{
+      height:48vh;
+      order:1;
+    }
+    .legend{display:none;}
+    h1{font-size:21px;}
+  }
+
+  :focus-visible{
+    outline:2px solid var(--forest);
+    outline-offset:2px;
+  }
+</style>
+</head>
+<body>
+
+<div class="app">
+
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <p class="eyebrow">Sveriges energigemenskaper</p>
+      <h1>Karta över energigemenskaper</h1>
+      <p class="subtitle">Befintliga, pågående och planerade energigemenskaper i Sverige — sök, filtrera och utforska var de finns och hur de fungerar.</p>
+    </div>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input id="search" type="text" placeholder="Sök på namn, plats eller nyckelord…" autocomplete="off" />
+        <button class="clear-btn" id="clearSearch" aria-label="Rensa sökning">✕</button>
+      </div>
+    </div>
+
+    <div class="filters">
+      <div class="filter-group">
+        <p class="filter-title">Status</p>
+        <div class="chip-row" id="statusChips"></div>
+      </div>
+      <div class="filter-group">
+        <p class="filter-title">Energislag</p>
+        <div class="chip-row" id="energyChips"></div>
+      </div>
+      <div class="filter-group">
+        <p class="filter-title">Ägarform</p>
+        <div class="chip-row" id="coopChips"></div>
+      </div>
+      <button class="reset-link" id="resetBtn">Visa alla / rensa filter</button>
+    </div>
+
+    <div class="list-header">
+      <span id="count-label"></span>
+    </div>
+    <div class="list" id="list"></div>
+
+    <div class="sidebar-footer">
+      Platser är ungefärliga (kommun-/stadsdelsnivå), ej exakta koordinater. Sammanställning baserad på tillgänglig offentlig information — uppgifter kan vara inaktuella eller ofullständiga.
+    </div>
+  </aside>
+
+  <div class="map-area">
+    <div id="map"></div>
+    <div class="legend" id="legend"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script>
+const DATA = [{"id": 0, "name": "Austerland Energi", "place": "Östergarnslandet, Gotland", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "https://austerlandenergi.se/", "link2": "Energicentrum | Region Gotland", "mwRaw": 1.6, "mwhRaw": 1440, "mwNum": 1.6, "desc": "Andelsägd solenergigemenskap, invigd maj 2025. Solenergipriset 2025. Austerland Energi är en lokal ekonomisk förening på Gotland som arbetar för att främja omställningen till förnybar energi. Föreningen bygger en energigemenskap där hushåll, företag och föreningar kan delta i gemensamma projekt för att producera och använda energi på ett hållbart sätt. Genom projekt som solcellsparker och smart energistyrning bidrar Austerland till att minska koldioxidutsläppen och skapa långsiktigt hållbara energilösningar för regionen", "lat": 57.434, "lng": 18.847}, {"id": 1, "name": "Solpunkten i Kristianstad", "place": "Kristianstad, Skåne", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "c4energi.se", "link2": "interreg-baltic.eu", "mwRaw": 4, "mwhRaw": 4000, "mwNum": 4.0, "desc": "~10 000 paneler. Ägarandel: C4 Energi 60%, föreningen 40%. Källa: c4energi.se + energinyheter.se. EU Interreg-fallstudie.", "lat": 56.0294, "lng": 14.1567}, {"id": 2, "name": "Kalmarsund Sol", "place": "Kalmar, Småland", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "https://kalmarenergi.se/sol/", "link2": "", "mwRaw": "ca 5,4", "mwhRaw": 5400, "mwNum": 5.4, "desc": "Andelsägda solcellsparker på totalt 6 anläggningar. Medlemmar kan investera i upp till 80% av deras årsbehov. I dagsläget finns 24 024 andelar sålda.", "lat": 56.6634, "lng": 16.3566}, {"id": 3, "name": "Solar Park Helsingborg", "place": "Helsingborg Skåne", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "https://solarpark.se/", "link2": "", "mwRaw": 1.67, "mwhRaw": 1670, "mwNum": 1.67, "desc": "Solelanläggning byggd i 8 etapper där varje etapp börjar med andelsköp som senare resulterar i ny anläggning. Totalt 753 medlemmar i dagsläget", "lat": 56.0465, "lng": 12.6945}, {"id": 4, "name": "Östersund Solpark", "place": "Östersund, Jämtland", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "osdsolparkforening.se", "link2": "", "mwRaw": 3, "mwhRaw": 3000, "mwNum": 3.0, "desc": "6 ha, 30 000 andelar. Driftsatt dec 2019. Jämtkraft + Östersundshem.", "lat": 63.1792, "lng": 14.6357}, {"id": 5, "name": "Bredstorp Solpark", "place": "Tranås, Småland", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "tranasenergi.se", "link2": "energinyheter.se", "mwRaw": 1.1, "mwhRaw": 1120, "mwNum": 1.1, "desc": "En andelsägd solpark i Tranås, driven av Tranås Energi. Parken driftsattes 1 oktober 2020, är 3,5 hektar stor med 3 756 paneler och förser sina andelsägare med el. Det är en ekonomisk förening (kooperativ) – medlemmarna äger andelar i parken istället för egna solpaneler, kan se produktionen i realtid, och kan överlåta eller sälja tillbaka sina andelar samt lämna motioner till föreningsstämman.", "lat": 58.0392, "lng": 14.9799}, {"id": 6, "name": "Lindesberg – Solel i Bergslagen", "place": "Lindesberg, Västmanland", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": true, "status": "Aktiv", "link1": "solelibergslagen.se", "link2": "", "mwRaw": "0.166", "mwhRaw": 157, "mwNum": 0.166, "desc": "En liten, gräsrotsdriven solenergikooperativ (ekonomisk förening) i Lindesberg/Frövi-trakten.Andelsägd solcellanläggningar (på tak) för hushåll och företag. Lokal förankring i Bergslagens omställningsarbete.", "lat": 59.5942, "lng": 15.2486}, {"id": 7, "name": "Solivind El Ek. För.", "place": "Nationell (HK Södertälje)", "org": "Ekonomisk förening", "energy": "Vind", "energyCats": ["vind"], "sharing": "Virtuell", "coop": true, "status": "Vilande", "link1": "solivind.com", "link2": "press.godel.se", "mwRaw": 16.5, "mwhRaw": 35000, "mwNum": 16.5, "desc": "~4 000 medl., 9 vindkraftverk. Grundat 2005. GodEL övertog förvaltning sept 2025 efter ekonomiska utmaningar.", "lat": 59.1955, "lng": 17.6253}, {"id": 8, "name": "Röstånga Energikooperativ", "place": "Röstånga, Skåne", "org": "Ekonomisk förening", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": false, "status": "Aktiv", "link1": "rostangaenergikooperativ.se", "link2": "", "mwRaw": 0.15, "mwhRaw": 175, "mwNum": 0.15, "desc": "Energisamverkan i byn. Har gjort gemensamma upphandlingar för individuella solceller samt hjälpts åt att installera panelerna hos varandra. Halverade installationskostnader. Årets kooperativ 2023. LTH-forskning.", "lat": 56.0986, "lng": 13.3214}, {"id": 9, "name": "BRF Stenberg", "place": "Hudiksvall, Hälsningland", "org": "Ekonomisk förening (BRF)", "energy": "Sol, Batterier, V2G + 6 Bilar", "energyCats": ["sol", "lagring"], "sharing": "IMD", "coop": false, "status": "Aktiv", "link1": "https://www.energi.se/artiklar/2025/juni-2025/bostadsrattsforeningen-som-kapar-elnotan-med-hjalp-av-elbilsbatterier/", "link2": "https://www.volkswagen.se/sv/om-volkswagen/volkswagen-e-magasin/innovation/har-ar-elbilen-en-vinstaffar.html", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Energisamverkan i byn. Har gjort gemensamma upphandlingar för individuella solceller samt hjälpts åt att installera panelerna hos varandra. Halverade installationskostnader. Årets kooperativ 2023. LTH-forskning.", "lat": 61.7281, "lng": 17.1058}, {"id": 10, "name": "SBF Safiren, Oxhagen", "place": "Kalmar, Småland", "org": "Privat fastighetsbolag (Svenska Bostadsfonden AB)", "energy": "Sol + Mikronät", "energyCats": ["sol", "nat"], "sharing": "Fysisk", "coop": false, "status": "Aktiv", "link1": "https://www.sbffonder.se/microgrids-enable-green-transition-and-huge-energy-savings-in-apartment-blocks/", "link2": "https://chargenode.eu/kundcase/sbf-safiren", "mwRaw": 0.25, "mwhRaw": 225, "mwNum": 0.25, "desc": "SBF Safirren är ett bostadsområde från 60-talet, ägt av Svenska Bostadsfonden, som efter en fem år lång rättsprocess mot Kalmar Energi fick rätt att bygga ett eget internt elnät – det första i sitt slag i Sverige för flerbostadshus av den åldern.SBF Safiren i Kalmar har genomfört ett omfattande energiinitiativ där fastigheten fått ett eget internt mikronät. Med 727 solpaneler på taken kan fastigheten producera egen el till uppvärmning, hushållsel och elbilsladdning. De boende har kunnat lämna sina tidigare elnätsabonnemang och i stället få el via fastighetens egna system, vilket väntas ge lägre elkostnader. Safiren visar hur äldre bostadsfastigheter kan bli mer självförsörjande, klimatsmarta och samtidigt erbjuda moderna lösningar som laddplatser för elbilar.", "lat": 56.668, "lng": 16.345}, {"id": 11, "name": "Energigemenskapen i Hammarby Sjöstad (EGHS)", "place": "Hammarby Sjöstad, Stockholm", "org": "Ekonomisk förening", "energy": "Sol + Batteri + Elbilsladdare + Värmepumpar mm", "energyCats": ["sol", "lagring", "varme"], "sharing": "Virtuell/Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "electricityinnovation.se", "link2": "https://electricityinnovation.se/projekt/optilor/", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Hammarby Sjöstad är en av Sveriges mest etablerade testbäddar för energigemenskaper, där flera parallella forskningsprojekt (nationella och EU-finansierade) undersöker juridik, teknik och sociala aspekter av att dela solel och energi mellan grannfastigheter – med målet att modellen ska kunna skalas upp till resten av landet.", "lat": 59.3047, "lng": 18.0987}, {"id": 12, "name": "Tamarinden", "place": "Sörbyängen, Örebro", "org": "Samfällighetsförening (under bildande)", "energy": "Sol + Batteri + Bergvärme +  Ackumulatortankar/värmelagring", "energyCats": ["sol", "lagring", "varme"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "orebro.se", "link2": "sverigesallmannytta.se", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Tamarinden är ett nytt, energismart bostadsområde i Örebro med cirka 800 bostäder på 10 fastigheter, där husen ska producera, lagra och dela el och värme via egna lokala nät. Projektet drivs av fem byggaktörer tillsammans med Örebro kommun och är, tillsammans med Hammarby Sjöstad, en av Sveriges två nationella forskningspiloter för energigemenskaper", "lat": 59.2647, "lng": 15.2126}, {"id": 13, "name": "EnergyNet-piloten / CoAction Lund", "place": "Brunnshög, Lund", "org": "Energigemenskap driven av kommunala bolag (Lunds Kommunal Fastighet LKF + Lunds Kommunal Parkering LKP)", "energy": "Sol + Batteri + Internt delningsnät (Likström)", "energyCats": ["sol", "lagring", "nat"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "https://lund.se/coaction-lund/detta-gor-vi-inom-energi/energynet", "link2": "", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Världens första EnergyNet invigdes i april 2025 i Brunnshög, Lund. EnergyNet möjliggör lokal produktion, lagring och delning av el, där överskott kan säljas direkt mellan fastigheter. Projektet drivs inom CoAction Lund och samarbetet inkluderar Lunds kommuns fastighets AB (LKF), Lunds kommuns parkerings AB (LKP) och ViaEuropa, i en energigemenskap – en organisationsform som blivit möjlig genom nya EU-direktiv. Brunnshög var den lilla, kontrollerade testbädden (2 hus) som bevisade att EnergyNet-tekniken fungerar. 2 byggnader, 2 fastigheter", "lat": 55.7339, "lng": 13.2323}, {"id": 14, "name": "LKFs energigemenskap med EnergyNet", "place": "Väster, Lund", "org": "Kommunalt bostadsbolag (LKF AB)", "energy": "Sol + Batteri + Internt delningsnät (Likström)", "energyCats": ["sol", "lagring", "nat"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "lkf.se", "link2": "https://www.energinyheter.se/20260217/34360/energynet-lokal-eldelning-i-bostadsomrade-i-lund", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Äldre bostadsområde kopplas i internt elnät feb 2026. EnergyNet-teknik. Kraftringen partner.", "lat": 55.7058, "lng": 13.1814}, {"id": 15, "name": "Eksta Bostad", "place": "Fjärås, Kungsbacka", "org": "Kommunalt bostadsbolag (Eksta Bostad AB)", "energy": "Sol + DC-nät + Batteri", "energyCats": ["sol", "lagring", "nat"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "https://www.sverigesenergigemenskaper.se/post/energigemenskap-%C3%A4r-inte-framtid-det-%C3%A4r-nu", "link2": "energi-miljo.se", "mwRaw": 1, "mwhRaw": 1000, "mwNum": 1.0, "desc": "DC-mikronät: flerbostadshus + äldreboende + förskola. 70–80% egenanvändning solel. AI-styrd. Omvandlas till EG.", "lat": 57.4333, "lng": 12.15}, {"id": 16, "name": "Embassy of Sharing – Hyllie", "place": "Hyllie, Malmö", "org": "Privata fastighetsbolag (Granitor + Midroc)", "energy": "Sol + Geoenergi", "energyCats": ["sol", "varme"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "malmberg.se", "link2": "e2b2.se", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "DC-mikronät: flerbostadshus + äldreboende + förskola. 70–80% egenanvändning solel. AI-styrd. Omvandlas till EG.", "lat": 55.5571, "lng": 12.9764}, {"id": 17, "name": "Dansmästaren, Rosendal", "place": "Rosendal, Uppsala", "org": "Kommunalt bolag (Uppsala Parkering AB) + Uppsalahem", "energy": "Sol + Batteri", "energyCats": ["sol", "lagring"], "sharing": "Fysisk", "coop": false, "status": "Pilot / forskning", "link1": "energi.se", "link2": "https://www.uppsala.se/kommun-och-politik/sa-arbetar-vi-med-olika-amnen/sa-arbetar-vi-med-innovation/inspiration-bygga-och-bo/smarta-laddningslosningar-i-mobilitetshuset-dansmastaren/", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Studentlgh + P-hus + Hemköp. Tekniskt EG, juridiken komplex. EU MASTERPIECE. Sol + batteri i källaren. Dansmästaren i Rosendal, Uppsala, är ett mobilitetshus byggt av Uppsala Parkering tillsammans med Uppsalahem som kombinerar 461 parkeringsplatser med 60 elbilsladdplatser och 133 studentbostäder och en Hemköp-butik, där två solcellsparker på taket och ett batterilager i källaren försörjer hela fastigheten med energi sedan invigningen 2020; tekniskt sett är det en energigemenskap, men juridiskt återstår det en del, vilket gjort byggnaden till en etablerad testbädd där Uppsala universitet, STUNS och Uppsala kommun sedan 2018 bedrivit flera forskningsprojekt om smart energistyrning och säker datadelning, samtidigt som Uppsala kommun via EU-projektet Masterpiece samarbetar med nio andra länder för att sprida modellen för energigemenskaper i Europa", "lat": 59.8385, "lng": 17.6469}, {"id": 18, "name": "Nämdö Energigemenskap", "place": "Nämdö skärgård, Stockholm", "org": "Informell / under utredning", "energy": "Sol", "energyCats": ["sol"], "sharing": "Fysisk", "coop": false, "status": "Planering / studie", "link1": "https://greenarchipelago.se/namdo-hembygdsforening-informerar-energigemenskap-i-namdoskargarden/", "link2": "https://www.sverigesenergigemenskaper.se/post/kunskapsutbyte-p%C3%A5-n%C3%A4md%C3%B6-med-lagn%C3%B6-energigemenskap", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Ö undersöker EG med eget nät. Kunskapsutbyte med Lagnö apr 2026. KTH/RISE involverade. Ej formellt startat.", "lat": 59.202, "lng": 18.7122}, {"id": 19, "name": "Crossways Växjö", "place": "Växjö, Småland", "org": "Forskningsprojekt (Linnéuniversitetet + Combitech)", "energy": "Sol + Lagring", "energyCats": ["sol", "lagring"], "sharing": "Båda", "coop": false, "status": "Planering / studie", "link1": "lnu.se", "link2": "", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Projektets syfte är att undersöka hur en energigemenskap i befintlig bebyggelse faktiskt kan fungera – tekniskt, juridiskt, ekonomiskt och socialt. Den juridiska/organisatoriska formen är alltså en del av det som ska utredas, inte något redan beslutat.", "lat": 56.8777, "lng": 14.8091}, {"id": 20, "name": "Skintebo Energigemenskap", "place": "Skintebo, Göteborg", "org": "Ideell förening (Skintebo Utvecklingsförening)", "energy": "Sol + Lagring", "energyCats": ["sol", "lagring"], "sharing": "Båda", "coop": false, "status": "Planering / studie", "link1": "https://skintebo.com/", "link2": "Skintebo vill ta makten över elen – bygger en av Sveriges största energigemenskaper - ETC El", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Befintlig lokal struktur: Skintebo samfällighetsförening (SSF),  Energimyndigheten finansierar förstudie.", "lat": 57.6205, "lng": 11.898}, {"id": 21, "name": "Ekohus Herrstorpet, Hultsfred", "place": "Hultsfred, Småland", "org": "Aktiebolag (ETC Sol AB) + kommunalt samarbete", "energy": "Sol (tak + staket)", "energyCats": ["sol"], "sharing": "Fysisk", "coop": false, "status": "Planering / studie", "link1": "etcbygg.se/herrstorpet", "link2": "etc.se – Ei-besked", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "7 parhus, 14 lgh i trä/halm; plusenergihus; Ei godkänt lokalt nät", "lat": 57.4914, "lng": 15.8453}, {"id": 22, "name": "Ölme Energigemenskap", "place": "Ölme, Värmland", "org": "Under bildande (lantbruksföretag i konsortium)", "energy": "Sol + Lagring", "energyCats": ["sol", "lagring"], "sharing": "Fysisk", "coop": false, "status": "Planering / studie", "link1": "energimyndigheten.se", "link2": "", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "5 lantbruk delar och lagrar förnybar energi. Stärker livsmedelsberedskap. Del av Energimyndighetens utlysning för energigemenskaper.", "lat": 59.3623, "lng": 14.007}, {"id": 23, "name": "Karlstad Energi + Region Värmland", "place": "Karlstad, Värmland", "org": "Kommunalt bolag + Region", "energy": "Värme + Kyla + El", "energyCats": ["varme"], "sharing": "Fysisk", "coop": false, "status": "Planering / studie", "link1": "energismartavarmland.se", "link2": "kau.se", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Kopplat till nybyggnation av Centralsjukhuset; juridisk komplexitet pga kommunallagen", "lat": 59.3793, "lng": 13.5036}, {"id": 24, "name": "Sätra Energigemenskap", "place": "Västerås", "org": "Under utredning", "energy": "Sol", "energyCats": ["sol"], "sharing": "Virtuell", "coop": false, "status": "Planering / studie", "link1": "https://www.e2b2.se/forskningsprojekt-i-e2b2/stad-och-planering/satra-stadsdelen-som-praglas-av-egen-solelforsorjning/", "link2": "https://www.vasteras.se/kommun-och-politik/vasteras-utvecklas/satra/hallbarhet-i-satra.html", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Ny stadsdel med inbyggd EG-modell. Fas 2 inväntar länsstyrelsens beslut om solpark. SVEG:s digitala karta.", "lat": 59.6099, "lng": 16.5448}, {"id": 25, "name": "Andreastorpets bygg- och EG", "place": "Gerlesborg, Bohuslän", "org": "Kooperativ hyresrättsförening", "energy": "Sol, fliskraft + värmepumpar", "energyCats": ["sol", "varme"], "sharing": "Okänt", "coop": false, "status": "Planering / studie", "link1": "", "link2": "https://www.energi-miljo.se/vanboendet-skapar-ett-lokalt-energisystem/", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "32 kooperativa hyresrätter (\"Edits äng\"); mottagare av stipendiet Hectors Hållbara Hus", "lat": 58.508, "lng": 11.325}, {"id": 26, "name": "Malmö Energigemenskap", "place": "Malmö", "org": "Ideell förening", "energy": "Sol men troligtvis även batterier", "energyCats": ["sol", "lagring"], "sharing": "TBD", "coop": false, "status": "Planering / studie", "link1": "https://www.energimyndigheten.se/energisystem-och-analys/energisystem-och-analys/energigemenskaper-en-viktig-del-av-framtidens-energisystem/19-projekt-far-stod-for-att-utveckla-energigemenskaper/", "link2": "", "mwRaw": "", "mwhRaw": "", "mwNum": null, "desc": "Intresseorganisation med målet att implementera gemensamma och demokratiska energilösningar för boende. Projektet  \"Gemensam Energi i Malmö\" fokuser på rättvisa och inkludering för hyresgäster", "lat": 55.605, "lng": 13.0038}, {"id": 27, "name": "Simris energi-by (E.ON pilot)", "place": "Simrishamn, Skåne", "org": "Inget –", "energy": "Vind + Sol + Batteri", "energyCats": ["sol", "vind", "lagring"], "sharing": "Fysisk", "coop": false, "status": "Vilande", "link1": "sverigesenergigemenskaper.se", "link2": "eon.se", "mwRaw": 0.8, "mwhRaw": 2100, "mwNum": 0.8, "desc": "Sveriges FÖRSTA lokala mikronät. 145 hushåll. Vind, sol och batterilager. Vilande sedan 2020.", "lat": 55.55, "lng": 14.35}];
+
+const STATUS_META = {
+  'Aktiv':              { color:'#1F6F54', short:'st-Aktiv',     label:'Aktiv' },
+  'Pilot / forskning':  { color:'#3A5A99', short:'st-Pilot',     label:'Pilot / forskning' },
+  'Planering / studie': { color:'#A8772E', short:'st-Planering', label:'Planering / studie' },
+  'Vilande':            { color:'#7C8581', short:'st-Vilande',   label:'Vilande' },
+};
+const ENERGY_META = {
+  sol:     'Sol',
+  vind:    'Vind',
+  lagring: 'Batteri / lagring',
+  varme:   'Värme / kyla',
+  nat:     'Nät / mikronät',
+  ovrigt:  'Övrigt',
+};
+
+let activeStatuses = new Set(Object.keys(STATUS_META));
+let activeEnergy = new Set(Object.keys(ENERGY_META));
+let onlyCoop = false;
+let searchTerm = '';
+let selectedId = null;
+
+// ---------- Map setup ----------
+const map = L.map('map', { zoomControl:true, attributionControl:true }).setView([62.5, 16.0], 5);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+  attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>',
+  maxZoom: 19,
+  subdomains: 'abcd'
+}).addTo(map);
+
+const markerLayer = L.layerGroup().addTo(map);
+const markersById = {};
+
+function makeIcon(rec){
+  const meta = STATUS_META[rec.status] || STATUS_META['Vilande'];
+  const size = 20;
+  const pulse = rec.status === 'Aktiv' ? 'pulse' : '';
+  const html = `<div class="eg-marker ${pulse}" style="width:${size}px;height:${size}px;background:${meta.color};"></div>`;
+  return L.divIcon({
+    html, className:'', iconSize:[size,size], iconAnchor:[size/2,size/2], popupAnchor:[0,-size/2]
+  });
+}
+
+function linkHtml(url, label){
+  if (!url) return '';
+  let href = url;
+  if (!/^https?:\/\//i.test(href)) href = 'https://' + href.replace(/^\/+/, '');
+  // guard against non-url text accidentally in link fields
+  if (!/^https?:\/\/[^\s]+\.[a-zA-ZåäöÅÄÖ]{2,}/i.test(href)) return '';
+  return `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+}
+
+function popupHtml(rec){
+  const meta = STATUS_META[rec.status] || STATUS_META['Vilande'];
+  const links = [linkHtml(rec.link1, 'Läs mer'), linkHtml(rec.link2, 'Källa 2')].filter(Boolean).join('');
+  return `
+    <div class="popup-inner">
+      <span class="popup-status" style="background:${meta.color}">${meta.label}</span>
+      <p class="popup-name">${rec.name}</p>
+      <p class="popup-place">${rec.place}</p>
+      <div class="popup-row"><span class="k">Organisation</span><span class="v">${rec.org || '–'}</span></div>
+      <div class="popup-row"><span class="k">Energislag</span><span class="v">${rec.energy || '–'}</span></div>
+      <div class="popup-row"><span class="k">Typ av delning</span><span class="v">${rec.sharing || '–'}</span></div>
+      <div class="popup-row"><span class="k">Ägarform</span><span class="v">${rec.coop ? 'Andelsägt kooperativ' : '–'}</span></div>
+      ${rec.desc ? `<div class="popup-desc">${rec.desc}</div>` : ''}
+      ${links ? `<div class="popup-links">${links}</div>` : ''}
+    </div>`;
+}
+
+DATA.forEach(rec => {
+  const marker = L.marker([rec.lat, rec.lng], { icon: makeIcon(rec) });
+  marker.bindPopup(popupHtml(rec), { maxWidth:320 });
+  marker.on('click', () => selectCard(rec.id, false));
+  markersById[rec.id] = marker;
+});
+
+// ---------- Sidebar: stats ----------
+function renderStats(){
+  const total = DATA.length;
+  const aktiva = DATA.filter(d => d.status === 'Aktiv').length;
+  const coop = DATA.filter(d => d.coop).length;
+  const stats = [
+    { num: total, lbl: 'Energigemenskaper i listan' },
+    { num: aktiva, lbl: 'Aktiva i drift idag' },
+    { num: coop, lbl: 'Andelsägda kooperativ' },
+  ];
+  document.getElementById('stats').innerHTML = stats.map(s =>
+    `<div class="stat"><span class="num">${s.num}</span><span class="lbl">${s.lbl}</span></div>`
+  ).join('');
+}
+renderStats();
+
+// ---------- Sidebar: filter chips ----------
+function renderChips(){
+  const statusWrap = document.getElementById('statusChips');
+  statusWrap.innerHTML = Object.entries(STATUS_META).map(([key, meta]) => {
+    const count = DATA.filter(d => d.status === key).length;
+    return `<button class="chip ${meta.short} ${activeStatuses.has(key)?'active':''}" data-status="${key}" style="color:${activeStatuses.has(key)?'#fff':meta.color}">
+      <span class="dot" style="background:${meta.color}"></span>${meta.label} (${count})
+    </button>`;
+  }).join('');
+
+  const energyWrap = document.getElementById('energyChips');
+  energyWrap.innerHTML = Object.entries(ENERGY_META).map(([key, label]) => {
+    const count = DATA.filter(d => d.energyCats.includes(key)).length;
+    if (count === 0) return '';
+    return `<button class="chip ${activeEnergy.has(key)?'active':''}" data-energy="${key}">${label} (${count})</button>`;
+  }).join('');
+
+  const coopWrap = document.getElementById('coopChips');
+  const coopCount = DATA.filter(d => d.coop).length;
+  coopWrap.innerHTML = `<button class="chip ${onlyCoop?'active':''}" data-coop="1">Andelsägda kooperativ (${coopCount})</button>`;
+
+  statusWrap.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const key = chip.dataset.status;
+      if (activeStatuses.has(key)) activeStatuses.delete(key); else activeStatuses.add(key);
+      renderAll();
+    });
+  });
+  energyWrap.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      const key = chip.dataset.energy;
+      if (activeEnergy.has(key)) activeEnergy.delete(key); else activeEnergy.add(key);
+      renderAll();
+    });
+  });
+  coopWrap.querySelectorAll('.chip').forEach(chip => {
+    chip.addEventListener('click', () => {
+      onlyCoop = !onlyCoop;
+      renderAll();
+    });
+  });
+}
+
+document.getElementById('resetBtn').addEventListener('click', () => {
+  activeStatuses = new Set(Object.keys(STATUS_META));
+  activeEnergy = new Set(Object.keys(ENERGY_META));
+  onlyCoop = false;
+  searchTerm = '';
+  document.getElementById('search').value = '';
+  renderAll();
+});
+
+// ---------- Search ----------
+const searchInput = document.getElementById('search');
+const clearBtn = document.getElementById('clearSearch');
+searchInput.addEventListener('input', (e) => {
+  searchTerm = e.target.value.trim().toLowerCase();
+  clearBtn.style.display = searchTerm ? 'block' : 'none';
+  renderAll();
+});
+clearBtn.addEventListener('click', () => {
+  searchInput.value = '';
+  searchTerm = '';
+  clearBtn.style.display = 'none';
+  renderAll();
+});
+
+// ---------- Filtering ----------
+function matchesSearch(rec){
+  if (!searchTerm) return true;
+  const hay = `${rec.name} ${rec.place} ${rec.org} ${rec.energy} ${rec.desc}`.toLowerCase();
+  return hay.includes(searchTerm);
+}
+function isVisible(rec){
+  return activeStatuses.has(rec.status)
+    && rec.energyCats.some(c => activeEnergy.has(c))
+    && (!onlyCoop || rec.coop)
+    && matchesSearch(rec);
+}
+
+// ---------- List ----------
+function cardHtml(rec){
+  const meta = STATUS_META[rec.status] || STATUS_META['Vilande'];
+  const badges = [];
+  badges.push(`<span class="badge muted">${rec.energy.length > 28 ? rec.energy.slice(0,26)+'…' : rec.energy}</span>`);
+  if (rec.coop) badges.push(`<span class="badge coop">Andelsägd</span>`);
+  return `
+    <div class="card ${rec.id===selectedId?'selected':''}" data-id="${rec.id}" tabindex="0">
+      <div class="card-top">
+        <span class="status-dot" style="background:${meta.color}"></span>
+        <span class="card-name">${rec.name}</span>
+      </div>
+      <p class="card-place">${rec.place}</p>
+      <div class="badge-row">
+        <span class="badge status ${meta.short}">${meta.label}</span>
+        ${badges.join('')}
+      </div>
+    </div>`;
+}
+
+function renderList(filtered){
+  const list = document.getElementById('list');
+  if (filtered.length === 0){
+    list.innerHTML = `<div class="empty-state">Inga energigemenskaper matchar din sökning eller dina filter.<br><br>Prova att rensa filtren.</div>`;
+    return;
+  }
+  list.innerHTML = filtered.map(cardHtml).join('');
+  list.querySelectorAll('.card').forEach(card => {
+    const id = parseInt(card.dataset.id, 10);
+    card.addEventListener('click', () => selectCard(id, true));
+    card.addEventListener('keypress', (e) => { if (e.key === 'Enter') selectCard(id, true); });
+  });
+}
+
+function selectCard(id, fly){
+  selectedId = id;
+  const rec = DATA.find(d => d.id === id);
+  if (!rec) return;
+  if (fly) map.flyTo([rec.lat, rec.lng], Math.max(map.getZoom(), 9), { duration: 0.6 });
+  const marker = markersById[id];
+  if (marker) marker.openPopup();
+  document.querySelectorAll('.card').forEach(c => c.classList.toggle('selected', parseInt(c.dataset.id,10)===id));
+  const sel = document.querySelector(`.card[data-id="${id}"]`);
+  if (sel) sel.scrollIntoView({ block:'nearest', behavior:'smooth' });
+}
+
+// ---------- Legend ----------
+function renderLegend(){
+  const rows = Object.entries(STATUS_META).map(([key, meta]) =>
+    `<div class="legend-row"><span class="legend-dot" style="background:${meta.color}"></span>${meta.label}</div>`
+  ).join('');
+  document.getElementById('legend').innerHTML = `<div class="legend-title">Status</div>${rows}`;
+}
+renderLegend();
+
+// ---------- Master render ----------
+function renderAll(){
+  const filtered = DATA.filter(isVisible);
+  renderChips();
+  renderList(filtered);
+  markerLayer.clearLayers();
+  filtered.forEach(rec => markerLayer.addLayer(markersById[rec.id]));
+  document.getElementById('count-label').innerHTML = `<b>${filtered.length}</b> av ${DATA.length} energigemenskaper`;
+}
+
+renderAll();
+</script>
+</body>
+</html>
